@@ -1,4 +1,5 @@
 import os
+import re  # <--- هذا هو السطر اللي نسيته وسبب المشكلة!
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pyrogram import Client, filters, idle
@@ -10,7 +11,7 @@ import yt_dlp
 # ================= الإعدادات الأساسية =================
 API_ID = 34566664
 API_HASH = "94ba2e48816e662f5605deaf27665a44"
-BOT_TOKEN = "5988798787:AAFwDzeX-aGiPDMpn6M3zF3VOK5bxmX5ZGg"
+BOT_TOKEN = "5988798787:AAEYIxbqtPYQxH9Ooer8kIXFEbqNRheKOkc"
 SESSION = "AQIPcggATAGPbZb3yAdNAqT82JDfUK95iAV1WrRFcCu2VnodRquz5IanjQ47pGOZ7z8Z-VHeAkCoh4_aTnso_7V0xb1sx7oLAS0Zg1w1LQtMQziAqlOAX8nbQlHZmHH5jBa5sxMPOb1QgcYq4Qrb4oUKFo8QV96A2trwZ6cKTNsdQQmtF5aCz0BwOOusy9i9zvwTqdxYoBBZe3hiCvi8xl3kIybrJOq4bfU3x00EmHDadjclHv_0IxYxzqSnjzcCAc0HZAw9P_YwM4CZO9QEzjrweUhT9d6El4j44-6lGbj9qAzNmLKsLHSIwfS5n9kZ0bHkwSArvHGkbyyzPNblLVIxJG6I5gAAAAH85aJ8AA"
 # ======================================================
 
