@@ -1,13 +1,13 @@
-FROM python:3.10-slim
+FROM python:3.9
 
-# تثبيت FFmpeg وأدوات البناء الأساسية عشان المكتبات تتثبت بدون مشاكل
-RUN apt-get update && apt-get install -y ffmpeg gcc g++ make
+# تثبيت برنامج معالجة الصوت FFmpeg
+RUN apt-get update && apt-get install -y ffmpeg
 
 WORKDIR /app
 COPY . /app
 
-# تحديث أداة التثبيت pip أولاً
-RUN pip install --upgrade pip setuptools wheel
+# تحديث أداة التثبيت
+RUN pip install --upgrade pip
 
 # تثبيت مكتبات البايثون
 RUN pip install --no-cache-dir -r requirements.txt
