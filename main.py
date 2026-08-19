@@ -8,10 +8,10 @@ from pytgcalls.types import MediaStream
 import yt_dlp
 
 # ================= الإعدادات الأساسية =================
-API_ID = 12345678  # ضع الـ API_ID الخاص بك هنا كـ رقم
-API_HASH = "أضف_الهاش_هنا" 
-BOT_TOKEN = "توكن_البوت_الجديد" 
-SESSION = "كود_الجلسة_SESSION_STRING" 
+API_ID = 34566664  # ضع الـ API_ID الخاص بك هنا كـ رقم
+API_HASH = "94ba2e48816e662f5605deaf27665a44" 
+BOT_TOKEN = "5988798787:AAEYIxbqtPYQxH9Ooer8kIXFEbqNRheKOkc" 
+SESSION = "AQIPcggAP3nzfv36pp-RXwzZQC9b24NDtZyGJ2Ur44teisnVj-306uiGKG5sOtPKDtRK9RNTa2xg2BLgH8dXTJaPD4sRquTIAAW-QNCzAlM4e1M4yP1ZOOvyZzeQFSP0GmuidUomRe9IfB3dZzK0Ph5NFh0Rndq8bGEMjbEmZ-Tu_OK0fRFxH653QMNd38S31wRvrH9BAzbdgaY4rN9Xd2EPKhzOEqgCEQPzGP4g6hZnQlZErysuixMrpBFC-oUjVdCdQpthfn6fRN9BJ0EQj9TwiH9E6T-yLt5QVoXqP3KlY2EkL_gg1GUvy8WShia1q2h8nBTGypaEgO3vXFUBzl-FHJj3TgAAAAH85aJ8AA" 
 # ======================================================
 
 app = Client("MusicBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
