@@ -1,5 +1,5 @@
 import os
-import re  # <--- هذا هو السطر اللي نسيته وسبب المشكلة!
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pyrogram import Client, filters, idle
@@ -33,30 +33,35 @@ async def play_music(client, message):
     chat_id = message.chat.id
     user_mention = message.from_user.mention
     
-    status_msg = await message.reply_text("⏳ جاري معالجة طلبك من يوتيوب...")
+    status_msg = await message.reply_text("⏳ جاري سحب المقطع من يوتيوب...")
 
     try:
         await user.get_chat(chat_id)
     except Exception:
         try:
-            await status_msg.edit_text("⏳ الحساب المساعد غير موجود بالقروب، جاري إضافته...")
+            await status_msg.edit_text("⏳ الحساب المساعد غير موجود، جاري إضافته...")
             chat = await app.get_chat(chat_id)
             if chat.username:
                 await user.join_chat(chat.username)
             else:
                 invite_link = await app.export_chat_invite_link(chat_id)
                 await user.join_chat(invite_link)
-            await status_msg.edit_text("✅ تم دخول المساعد. جاري البحث في يوتيوب...")
+            await status_msg.edit_text("✅ تم دخول المساعد. جاري كسر حماية يوتيوب...")
         except Exception as e:
-            return await status_msg.edit_text(f"❌ لم أتمكن من إضافة المساعد. تأكد أن البوت مشرف.\nالخطأ: `{e}`")
+            return await status_msg.edit_text(f"❌ لم أتمكن من إضافة المساعد.\nالخطأ: `{e}`")
 
     try:
-        # العودة ליوتيوب مع كود التخطي
+        # إعدادات التخفي الهجومية ليوتيوب (بدون ساوند كلاود نهائياً)
         ydl_opts = {
             'format': 'bestaudio/best',
             'noplaylist': True,
             'quiet': True,
-            'extractor_args': {'youtube': ['client=ANDROID_MUSIC', 'player_client=android']}
+            'cookiefile': 'cookies.txt', # كوكيز الزائر من المتصفح الخفي
+            'geo_bypass': True,
+            'source_address': '0.0.0.0', # إجبار السيرفر على تقليل الحظر
+            'extractor_args': {
+                'youtube': ['client=IOS,ANDROID_MUSIC,WEB', 'player_skip=webpage,configs,js'] # تخطي مشغلات يوتيوب المعقدة
+            }
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -73,7 +78,7 @@ async def play_music(client, message):
         )
 
         caption = (
-            "| - تم بدء التشغيل\n\n"
+            "| - تم بدء التشغيل من يوتيوب ✅\n\n"
             f"• العنوان : {title}\n"
             f"• مدة التشغيل : {duration_str}\n"
             "-\n"
@@ -101,10 +106,7 @@ async def play_music(client, message):
             await status_msg.edit_text(text=caption, reply_markup=keyboard)
         
     except Exception as e:
-        error_str = str(e)
-        if "Sign in to confirm" in error_str:
-            error_str = "يوتيوب قام بحظر سيرفرات المنصة مؤقتاً. (حماية يوتيوب)."
-        await status_msg.edit_text(f"❌ حدث خطأ:\n`{error_str}`")
+        await status_msg.edit_text(f"❌ يوتيوب رفض الطلب (تأكد من تحديث ملف cookies.txt):\n`{str(e)}`")
 
 @app.on_message(filters.text & filters.regex(r"^(/?ايقاف|/?stop)", re.IGNORECASE))
 async def stop_music_cmd(client, message):
