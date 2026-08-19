@@ -1,5 +1,4 @@
 import os
-import re
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pyrogram import Client, filters, idle
@@ -19,11 +18,10 @@ app = Client("MusicBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 user = Client("Userbot", session_string=SESSION, api_id=API_ID, api_hash=API_HASH)
 call = PyTgCalls(user)
 
-# الدالة بعد التعديل وحل مشكلة الفواصل العشرية
 def format_duration(seconds):
     if not seconds: 
         return "0:00"
-    seconds = int(seconds) # هنا حولناه لرقم صحيح
+    seconds = int(seconds)
     m = seconds // 60
     s = seconds % 60
     return f"{m}:{s:02d}"
@@ -34,9 +32,8 @@ async def play_music(client, message):
     chat_id = message.chat.id
     user_mention = message.from_user.mention
     
-    status_msg = await message.reply_text("⏳ جاري معالجة طلبك...")
+    status_msg = await message.reply_text("⏳ جاري معالجة طلبك من يوتيوب...")
 
-    # دخول المساعد للقروب
     try:
         await user.get_chat(chat_id)
     except Exception:
@@ -48,19 +45,21 @@ async def play_music(client, message):
             else:
                 invite_link = await app.export_chat_invite_link(chat_id)
                 await user.join_chat(invite_link)
-            await status_msg.edit_text("✅ تم دخول المساعد للقروب. جاري البحث عن المقطع...")
+            await status_msg.edit_text("✅ تم دخول المساعد. جاري البحث في يوتيوب...")
         except Exception as e:
-            return await status_msg.edit_text(f"❌ لم أتمكن من إضافة المساعد. تأكد أن البوت مشرف ولديه صلاحية إضافة مستخدمين.\nالخطأ: `{e}`")
+            return await status_msg.edit_text(f"❌ لم أتمكن من إضافة المساعد. تأكد أن البوت مشرف.\nالخطأ: `{e}`")
 
     try:
+        # العودة ליوتيوب مع كود التخطي
         ydl_opts = {
             'format': 'bestaudio/best',
             'noplaylist': True,
             'quiet': True,
+            'extractor_args': {'youtube': ['client=ANDROID_MUSIC', 'player_client=android']}
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"scsearch:{query}", download=False)['entries'][0]
+            info = ydl.extract_info(f"ytsearch:{query}", download=False)['entries'][0]
             audio_url = info['url']
             title = info['title']
             thumbnail = info.get('thumbnail')
@@ -83,7 +82,7 @@ async def play_music(client, message):
         keyboard = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("مؤقت", callback_data="pause"),
-                InlineKeyboardButton("تخطي", callback_data="skip"),
+                InlineKeyboardButton("استئناف", callback_data="resume"),
                 InlineKeyboardButton("إيقاف", callback_data="stop")
             ],
             [
@@ -102,9 +101,9 @@ async def play_music(client, message):
         
     except Exception as e:
         error_str = str(e)
-        if "list index out of range" in error_str:
-            error_str = "لم أتمكن من العثور على الأغنية في ساوند كلاود، جرب اسماً مختلفاً."
-        await status_msg.edit_text(f"❌ حدث خطأ:\n`{error_str}`\n\nتأكد من فتح المكالمة الصوتية.")
+        if "Sign in to confirm" in error_str:
+            error_str = "يوتيوب قام بحظر سيرفرات المنصة مؤقتاً. (حماية يوتيوب)."
+        await status_msg.edit_text(f"❌ حدث خطأ:\n`{error_str}`")
 
 @app.on_message(filters.text & filters.regex(r"^(/?ايقاف|/?stop)", re.IGNORECASE))
 async def stop_music_cmd(client, message):
@@ -126,23 +125,22 @@ async def handle_callbacks(client, query: CallbackQuery):
         if data == "pause":
             await call.pause(chat_id)
             await query.answer("تم إيقاف المقطع مؤقتاً")
+        elif data == "resume":
+            await call.resume(chat_id)
+            await query.answer("تم استئناف المقطع")
         elif data == "stop":
             await call.leave_call(chat_id)
             await query.answer("تم إيقاف التشغيل")
             await query.message.delete()
-        elif data == "skip":
-            await query.answer("لا يوجد مقطع آخر لتخطيه حالياً", show_alert=True)
     except Exception:
         await query.answer("حدث خطأ أو البوت غير متصل", show_alert=True)
 
-# ================= خادم الويب الوهمي للحفاظ على السيرفر =================
 class DummyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'text/plain; charset=utf-8')
         self.end_headers()
         self.wfile.write("البوت شغال 100%".encode('utf-8'))
-
     def log_message(self, format, *args):
         pass
 
@@ -151,7 +149,6 @@ def run_server():
     server = HTTPServer(('0.0.0.0', port), DummyHandler)
     server.serve_forever()
 
-# ================= تشغيل جميع الخدمات بشكل متزامن =================
 async def start_services():
     print("🚀 جاري تشغيل البوت والمساعد...")
     await app.start()
