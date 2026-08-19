@@ -1,8 +1,8 @@
 import os
-import re
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pytgcalls import PyTgCalls
 from pytgcalls.types import MediaStream
 import yt_dlp
@@ -18,31 +18,38 @@ app = Client("MusicBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 user = Client("Userbot", session_string=SESSION, api_id=API_ID, api_hash=API_HASH)
 call = PyTgCalls(user)
 
+def format_duration(seconds):
+    if not seconds: 
+        return "غير معروف"
+    m = seconds // 60
+    s = seconds % 60
+    return f"{m}:{s:02d}"
+
 @app.on_message(filters.text & filters.regex(r"^(/?تشغيل|/?play)\s+(.+)", re.IGNORECASE))
 async def play_music(client, message):
     query = message.matches[0].group(2)
     chat_id = message.chat.id
-    status_msg = await message.reply_text("⏳ جاري معالجة طلبك...")
+    user_mention = message.from_user.mention
+    
+    status_msg = await message.reply_text("جاري معالجة طلبك...")
 
-    # ================= ميزة الدخول التلقائي للمساعد =================
+    # دخول المساعد للقروب
     try:
         await user.get_chat(chat_id)
     except Exception:
         try:
-            await status_msg.edit_text("⏳ الحساب المساعد مو موجود بالقروب، جاري إضافته...")
+            await status_msg.edit_text("الحساب المساعد غير موجود بالقروب، جاري إضافته...")
             chat = await app.get_chat(chat_id)
             if chat.username:
                 await user.join_chat(chat.username)
             else:
                 invite_link = await app.export_chat_invite_link(chat_id)
                 await user.join_chat(invite_link)
-            await status_msg.edit_text("✅ تم دخول المساعد للقروب! جاري البحث عن المقطع...")
-        except Exception as e:
-            return await status_msg.edit_text("❌ ما قدرت أضيف المساعد! تأكد إني (البوت) مشرف وعندي صلاحية 'دعوة المستخدمين عبر الرابط'.")
-    # ==============================================================
+            await status_msg.edit_text("تم دخول المساعد للقروب. جاري البحث عن المقطع...")
+        except Exception:
+            return await status_msg.edit_text("لم أتمكن من إضافة المساعد. تأكد أن البوت مشرف ولديه صلاحية إضافة مستخدمين.")
 
     try:
-        # البحث والتحميل من ساوند كلاود لتخطي حظر السيرفرات
         ydl_opts = {
             'format': 'bestaudio/best',
             'noplaylist': True,
@@ -53,24 +60,78 @@ async def play_music(client, message):
             info = ydl.extract_info(f"scsearch:{query}", download=False)['entries'][0]
             audio_url = info['url']
             title = info['title']
+            thumbnail = info.get('thumbnail')
+            duration_sec = info.get('duration', 0)
+            duration_str = format_duration(duration_sec)
 
         await call.play(
             chat_id,
             MediaStream(audio_url)
         )
-        await status_msg.edit_text(f"✅ تم التشغيل في المكالمة:\n🎵 **{title}**")
+
+        # النص مطابق للتصميم المطلوب
+        caption = (
+            "| - تم بدء التشغيل\n\n"
+            f"• العنوان : {title}\n"
+            f"• مدة التشغيل : {duration_str}\n"
+            "-\n"
+            f"• طلب بواسطة : {user_mention}"
+        )
+
+        # الأزرار مطابقة للتصميم
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("مؤقت", callback_data="pause"),
+                InlineKeyboardButton("تخطي", callback_data="skip"),
+                InlineKeyboardButton("إيقاف", callback_data="stop")
+            ],
+            [
+                InlineKeyboardButton(f"0:00 ───────◯────── {duration_str}", callback_data="none")
+            ],
+            [
+                InlineKeyboardButton("تحديثات ماريا", url="https://t.me/suooc")
+            ]
+        ])
+
+        if thumbnail:
+            await message.reply_photo(photo=thumbnail, caption=caption, reply_markup=keyboard)
+            await status_msg.delete()
+        else:
+            await status_msg.edit_text(text=caption, reply_markup=keyboard)
         
     except Exception as e:
         print("Error during playback:", e)
-        await status_msg.edit_text("❌ حدث خطأ! تأكد من فتح المكالمة الصوتية، أو جرب تبحث باسم مختلف.")
+        await status_msg.edit_text("حدث خطأ. تأكد من فتح المكالمة الصوتية.")
 
 @app.on_message(filters.text & filters.regex(r"^(/?ايقاف|/?stop)", re.IGNORECASE))
-async def stop_music(client, message):
+async def stop_music_cmd(client, message):
     try:
         await call.leave_call(message.chat.id)
-        await message.reply_text("✅ تم إيقاف الصوت ومغادرة المكالمة.")
+        await message.reply_text("تم إيقاف الصوت ومغادرة المكالمة.")
     except Exception:
-        await message.reply_text("❌ البوت غير متصل بالمكالمة أصلاً.")
+        await message.reply_text("البوت غير متصل بالمكالمة.")
+
+# برمجة الأزرار الشفافة
+@app.on_callback_query()
+async def handle_callbacks(client, query: CallbackQuery):
+    chat_id = query.message.chat.id
+    data = query.data
+
+    if data == "none":
+        return await query.answer()
+
+    try:
+        if data == "pause":
+            await call.pause(chat_id)
+            await query.answer("تم إيقاف المقطع مؤقتاً")
+        elif data == "stop":
+            await call.leave_call(chat_id)
+            await query.answer("تم إيقاف التشغيل")
+            await query.message.delete()
+        elif data == "skip":
+            await query.answer("لا يوجد مقطع آخر لتخطيه حالياً", show_alert=True)
+    except Exception:
+        await query.answer("حدث خطأ أو البوت غير متصل", show_alert=True)
 
 # ================= خادم الويب الوهمي للحفاظ على السيرفر =================
 class DummyHandler(BaseHTTPRequestHandler):
@@ -78,7 +139,7 @@ class DummyHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/plain; charset=utf-8')
         self.end_headers()
-        self.wfile.write("بوت المكالمات شغال 100%!".encode('utf-8'))
+        self.wfile.write("البوت شغال 100%".encode('utf-8'))
 
     def log_message(self, format, *args):
         pass
@@ -90,6 +151,6 @@ def run_server():
 
 if __name__ == "__main__":
     threading.Thread(target=run_server, daemon=True).start()
-    print("🚀 جاري تشغيل بوت الصوتيات...")
+    print("جاري تشغيل بوت الصوتيات...")
     call.start()
     app.run()
