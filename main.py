@@ -24,7 +24,7 @@ call = PyTgCalls(user)
 async def play_music(client, message):
     query = message.matches[0].group(2)
     chat_id = message.chat.id
-    status_msg = await message.reply_text(f"⏳ ابشر، جاري البحث عن: **{query}**...")
+    status_msg = await message.reply_text(f" ابشر، جاري البحث عن: **{query}**...")
 
     try:
         ydl_opts = {
@@ -42,20 +42,20 @@ async def play_music(client, message):
             chat_id,
             MediaStream(audio_url)
         )
-        await status_msg.edit_text(f"✅ تم التشغيل في المكالمة:\n🎵 **{title}**")
+        await status_msg.edit_text(f" تم التشغيل في المكالمة:\n🎵 **{title}**")
         
     except Exception as e:
         print(e)
-        await status_msg.edit_text("❌ حدث خطأ! تأكد إن المكالمة شغالة، والحساب المساعد موجود بالقروب كمشرف.")
+        await status_msg.edit_text(" حدث خطأ! تأكد إن المكالمة شغالة، والحساب المساعد موجود بالقروب كمشرف.")
 
 # فلتر الإيقاف
 @app.on_message(filters.text & filters.regex(r"^(/?ايقاف|/?stop)", re.IGNORECASE))
 async def stop_music(client, message):
     try:
         await call.leave_group_call(message.chat.id)
-        await message.reply_text("✅ تم إيقاف الصوت ومغادرة المكالمة.")
+        await message.reply_text(" تم إيقاف الصوت ومغادرة المكالمة.")
     except:
-        await message.reply_text("❌ البوت مو موجود في المكالمة أصلاً.")
+        await message.reply_text(" البوت مو موجود في المكالمة أصلاً.")
 
 # ================= إعداد السيرفر الوهمي (عشان Render) =================
 class DummyHandler(BaseHTTPRequestHandler):
