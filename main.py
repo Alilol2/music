@@ -1,8 +1,8 @@
 import os
-import re  # <--- هذا السطر اللي كان ناقص وسبب لنا المشكلة!
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pytgcalls import PyTgCalls
 from pytgcalls.types import MediaStream
@@ -11,7 +11,7 @@ import yt_dlp
 # ================= الإعدادات الأساسية =================
 API_ID = 34566664
 API_HASH = "94ba2e48816e662f5605deaf27665a44"
-BOT_TOKEN = "5988798787:AAFwDzeX-aGiPDMpn6M3zF3VOK5bxmX5ZGg"
+BOT_TOKEN = "5988798787:AAEYIxbqtPYQxH9Ooer8kIXFEbqNRheKOkc"
 SESSION = "AQIPcggATAGPbZb3yAdNAqT82JDfUK95iAV1WrRFcCu2VnodRquz5IanjQ47pGOZ7z8Z-VHeAkCoh4_aTnso_7V0xb1sx7oLAS0Zg1w1LQtMQziAqlOAX8nbQlHZmHH5jBa5sxMPOb1QgcYq4Qrb4oUKFo8QV96A2trwZ6cKTNsdQQmtF5aCz0BwOOusy9i9zvwTqdxYoBBZe3hiCvi8xl3kIybrJOq4bfU3x00EmHDadjclHv_0IxYxzqSnjzcCAc0HZAw9P_YwM4CZO9QEzjrweUhT9d6El4j44-6lGbj9qAzNmLKsLHSIwfS5n9kZ0bHkwSArvHGkbyyzPNblLVIxJG6I5gAAAAH85aJ8AA"
 # ======================================================
 
@@ -32,23 +32,23 @@ async def play_music(client, message):
     chat_id = message.chat.id
     user_mention = message.from_user.mention
     
-    status_msg = await message.reply_text("جاري معالجة طلبك...")
+    status_msg = await message.reply_text("⏳ جاري معالجة طلبك...")
 
     # دخول المساعد للقروب
     try:
         await user.get_chat(chat_id)
     except Exception:
         try:
-            await status_msg.edit_text("الحساب المساعد غير موجود بالقروب، جاري إضافته...")
+            await status_msg.edit_text("⏳ الحساب المساعد غير موجود بالقروب، جاري إضافته...")
             chat = await app.get_chat(chat_id)
             if chat.username:
                 await user.join_chat(chat.username)
             else:
                 invite_link = await app.export_chat_invite_link(chat_id)
                 await user.join_chat(invite_link)
-            await status_msg.edit_text("تم دخول المساعد للقروب. جاري البحث عن المقطع...")
-        except Exception:
-            return await status_msg.edit_text("لم أتمكن من إضافة المساعد. تأكد أن البوت مشرف ولديه صلاحية إضافة مستخدمين.")
+            await status_msg.edit_text("✅ تم دخول المساعد للقروب. جاري البحث عن المقطع...")
+        except Exception as e:
+            return await status_msg.edit_text(f"❌ لم أتمكن من إضافة المساعد. تأكد أن البوت مشرف ولديه صلاحية إضافة مستخدمين.\nالخطأ: `{e}`")
 
     try:
         ydl_opts = {
@@ -99,16 +99,18 @@ async def play_music(client, message):
             await status_msg.edit_text(text=caption, reply_markup=keyboard)
         
     except Exception as e:
-        print("Error during playback:", e)
-        await status_msg.edit_text("حدث خطأ. تأكد من فتح المكالمة الصوتية.")
+        error_str = str(e)
+        if "list index out of range" in error_str:
+            error_str = "لم أتمكن من العثور على الأغنية في ساوند كلاود، جرب اسماً مختلفاً."
+        await status_msg.edit_text(f"❌ حدث خطأ:\n`{error_str}`\n\nتأكد من فتح المكالمة الصوتية.")
 
 @app.on_message(filters.text & filters.regex(r"^(/?ايقاف|/?stop)", re.IGNORECASE))
 async def stop_music_cmd(client, message):
     try:
         await call.leave_call(message.chat.id)
-        await message.reply_text("تم إيقاف الصوت ومغادرة المكالمة.")
+        await message.reply_text("✅ تم إيقاف الصوت ومغادرة المكالمة.")
     except Exception:
-        await message.reply_text("البوت غير متصل بالمكالمة.")
+        await message.reply_text("❌ البوت غير متصل بالمكالمة.")
 
 @app.on_callback_query()
 async def handle_callbacks(client, query: CallbackQuery):
@@ -147,8 +149,15 @@ def run_server():
     server = HTTPServer(('0.0.0.0', port), DummyHandler)
     server.serve_forever()
 
+# ================= تشغيل جميع الخدمات بشكل متزامن =================
+async def start_services():
+    print("🚀 جاري تشغيل البوت والمساعد...")
+    await app.start()
+    await user.start()
+    await call.start()
+    print("✅ تم التشغيل بنجاح، البوت والمساعد جاهزين!")
+    await idle()
+
 if __name__ == "__main__":
     threading.Thread(target=run_server, daemon=True).start()
-    print("جاري تشغيل بوت الصوتيات...")
-    call.start()
-    app.run()
+    app.run(start_services())
