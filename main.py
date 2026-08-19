@@ -1,26 +1,23 @@
 import os
 import re
-import asyncio
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pyrogram import Client, filters
 from pytgcalls import PyTgCalls
-from pytgcalls.types import AudioPiped
+from pytgcalls.types import MediaStream
 import yt_dlp
 
 # ================= الإعدادات الأساسية =================
-API_ID = 12345678  # ضع الـ API_ID الخاص بك هنا كـ int
+API_ID = 12345678  # ضع الـ API_ID الخاص بك هنا كـ رقم
 API_HASH = "أضف_الهاش_هنا" 
 BOT_TOKEN = "توكن_البوت_الجديد" 
 SESSION = "كود_الجلسة_SESSION_STRING" 
 # ======================================================
 
-# إعداد البوت والحساب المساعد
 app = Client("MusicBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 user = Client("Userbot", session_string=SESSION, api_id=API_ID, api_hash=API_HASH)
 call = PyTgCalls(user)
 
-# فلتر تشغيل الأغاني
 @app.on_message(filters.text & filters.regex(r"^(/?تشغيل|/?play)\s+(.+)", re.IGNORECASE))
 async def play_music(client, message):
     query = message.matches[0].group(2)
@@ -39,9 +36,10 @@ async def play_music(client, message):
             audio_url = info['url']
             title = info['title']
 
-        await call.join_group_call(
+        # تم التحديث إلى دالة play الخاصة بالإصدار الثالث
+        await call.play(
             chat_id,
-            AudioPiped(audio_url)
+            MediaStream(audio_url)
         )
         await status_msg.edit_text(f"✅ تم التشغيل في المكالمة:\n🎵 **{title}**")
         
@@ -49,11 +47,11 @@ async def play_music(client, message):
         print("Error during playback:", e)
         await status_msg.edit_text("❌ حدث خطأ! تأكد من بدء المكالمة ووجود الحساب المساعد كمشرف.")
 
-# فلتر الإيقاف
 @app.on_message(filters.text & filters.regex(r"^(/?ايقاف|/?stop)", re.IGNORECASE))
 async def stop_music(client, message):
     try:
-        await call.leave_group_call(message.chat.id)
+        # تم التحديث إلى دالة leave_call
+        await call.leave_call(message.chat.id)
         await message.reply_text("✅ تم إيقاف الصوت ومغادرة المكالمة.")
     except Exception:
         await message.reply_text("❌ البوت غير متصل بالمكالمة.")
