@@ -19,9 +19,11 @@ app = Client("MusicBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 user = Client("Userbot", session_string=SESSION, api_id=API_ID, api_hash=API_HASH)
 call = PyTgCalls(user)
 
+# الدالة بعد التعديل وحل مشكلة الفواصل العشرية
 def format_duration(seconds):
     if not seconds: 
-        return "غير معروف"
+        return "0:00"
+    seconds = int(seconds) # هنا حولناه لرقم صحيح
     m = seconds // 60
     s = seconds % 60
     return f"{m}:{s:02d}"
