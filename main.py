@@ -22,13 +22,36 @@ call = PyTgCalls(user)
 async def play_music(client, message):
     query = message.matches[0].group(2)
     chat_id = message.chat.id
-    status_msg = await message.reply_text(f"⏳ جاري البحث عن: **{query}**...")
+    status_msg = await message.reply_text(f"⏳ جاري معالجة طلبك...")
+
+    # ================= ميزة الدخول التلقائي للمساعد =================
+    try:
+        # فحص إذا المساعد موجود بالقروب
+        await user.get_chat(chat_id)
+    except Exception:
+        try:
+            await status_msg.edit_text("⏳ الحساب المساعد مو موجود بالقروب، جاري إضافته...")
+            chat = await app.get_chat(chat_id)
+            if chat.username:
+                await user.join_chat(chat.username)
+            else:
+                # إذا القروب خاص، البوت بيطلع رابط ويدخل المساعد
+                invite_link = await app.export_chat_invite_link(chat_id)
+                await user.join_chat(invite_link)
+            await status_msg.edit_text("✅ تم دخول المساعد للقروب! جاري البحث عن المقطع...")
+        except Exception as e:
+            return await status_msg.edit_text("❌ ما قدرت أضيف المساعد! تأكد إني (البوت) مشرف وعندي صلاحية 'دعوة المستخدمين عبر الرابط'.")
+    # ==============================================================
 
     try:
+        # إعدادات تخطي حماية يوتيوب (يخدعه كأنه تطبيق أندرويد)
         ydl_opts = {
             'format': 'bestaudio/best',
             'noplaylist': True,
             'quiet': True,
+            'extractor_args': {'youtube': ['client=ANDROID_MUSIC', 'player_client=android']},
+            'geo_bypass': True,
+            'nocheckcertificate': True,
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -36,7 +59,6 @@ async def play_music(client, message):
             audio_url = info['url']
             title = info['title']
 
-        # تم التحديث إلى دالة play الخاصة بالإصدار الثالث
         await call.play(
             chat_id,
             MediaStream(audio_url)
@@ -45,16 +67,15 @@ async def play_music(client, message):
         
     except Exception as e:
         print("Error during playback:", e)
-        await status_msg.edit_text("❌ حدث خطأ! تأكد من بدء المكالمة ووجود الحساب المساعد كمشرف.")
+        await status_msg.edit_text("❌ حدث خطأ! تأكد من فتح المكالمة الصوتية، أو جرب أغنية ثانية (قد تكون محظورة من يوتيوب).")
 
 @app.on_message(filters.text & filters.regex(r"^(/?ايقاف|/?stop)", re.IGNORECASE))
 async def stop_music(client, message):
     try:
-        # تم التحديث إلى دالة leave_call
         await call.leave_call(message.chat.id)
         await message.reply_text("✅ تم إيقاف الصوت ومغادرة المكالمة.")
     except Exception:
-        await message.reply_text("❌ البوت غير متصل بالمكالمة.")
+        await message.reply_text("❌ البوت غير متصل بالمكالمة أصلاً.")
 
 # ================= خادم الويب الوهمي للحفاظ على السيرفر =================
 class DummyHandler(BaseHTTPRequestHandler):
