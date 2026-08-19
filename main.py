@@ -1,4 +1,5 @@
 import os
+import re  # <--- هذا السطر اللي كان ناقص وسبب لنا المشكلة!
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pyrogram import Client, filters
@@ -69,7 +70,6 @@ async def play_music(client, message):
             MediaStream(audio_url)
         )
 
-        # النص مطابق للتصميم المطلوب
         caption = (
             "| - تم بدء التشغيل\n\n"
             f"• العنوان : {title}\n"
@@ -78,7 +78,6 @@ async def play_music(client, message):
             f"• طلب بواسطة : {user_mention}"
         )
 
-        # الأزرار مطابقة للتصميم
         keyboard = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("مؤقت", callback_data="pause"),
@@ -111,7 +110,6 @@ async def stop_music_cmd(client, message):
     except Exception:
         await message.reply_text("البوت غير متصل بالمكالمة.")
 
-# برمجة الأزرار الشفافة
 @app.on_callback_query()
 async def handle_callbacks(client, query: CallbackQuery):
     chat_id = query.message.chat.id
