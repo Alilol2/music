@@ -537,6 +537,66 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # ------------------ الأوامر والمعلومات العامة الجديدة ------------------
+    # --- أمر المالك الجديد الفخم ---
+    if text == "المالك":
+        if update.message.chat.type == "private":
+            await update.message.reply_text(t("هذا الأمر للمجموعات بس يا عيني."))
+            return
+
+        try:
+            admins = await context.bot.get_chat_administrators(chat_id)
+            # البحث عن منشئ المجموعة
+            owner = next((admin for admin in admins if admin.status == 'creator'), None)
+
+            if owner:
+                owner_user = owner.user
+                owner_name = owner_user.first_name
+                owner_username = f"@{owner_user.username}" if owner_user.username else "بدون يوزر"
+                
+                # جلب البايو الخاص بالمالك (إذا كان متاح)
+                bio = "لا يوجد بايو"
+                try:
+                    owner_chat = await context.bot.get_chat(owner_user.id)
+                    if owner_chat.bio:
+                        bio = owner_chat.bio
+                except Exception:
+                    pass
+
+                # تصميم الكابشن المطابق للصورة تماماً
+                caption = (
+                    f"• <a href='tg://user?id={owner_user.id}'>{owner_name}</a>\n\n"
+                    f"• USE ↬ {owner_username}\n\n"
+                    f"• bio ↬ {bio}"
+                )
+
+                # إنشاء زر شفاف بأسفل الرسالة يحمل اسم المالك ويحوله لخاصه
+                keyboard = [[InlineKeyboardButton(owner_name, url=f"tg://user?id={owner_user.id}")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                # سحب صورة المالك الشخصية
+                photos = await context.bot.get_user_profile_photos(owner_user.id, limit=1)
+                
+                if photos.total_count > 0:
+                    await update.message.reply_photo(
+                        photo=photos.photos[0][-1].file_id,
+                        caption=t(caption),
+                        reply_markup=reply_markup,
+                        parse_mode='HTML'
+                    )
+                else:
+                    await update.message.reply_text(
+                        text=t(caption),
+                        reply_markup=reply_markup,
+                        parse_mode='HTML'
+                    )
+            else:
+                await update.message.reply_text(t("ما قدرت أطلع المالك، يمكن مخفي حسابه أو مالي صلاحيات كافية."))
+        except Exception as e:
+            print(f"Owner Error: {e}")
+            await update.message.reply_text(t("صار خطأ وأنا أدور على المالك."))
+        return
+    # ----------------------------------------------------
+
     if text == "الوقت":
         ksa_time = datetime.utcnow() + timedelta(hours=3)
         await update.message.reply_text(t(f"الوقت الان في السعودية: {ksa_time.strftime('%I:%M %p')}"))
@@ -989,7 +1049,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "تعديل زر":
         if issuer_weight < ROLES["مالك"]:
-            await update.message.reply_text(t("معليش هذا الامر للمالك والـ Dev فقط"))
+            await update.message.reply_text(t("مايمديك يحب هذا الامر يخص Dev"))
             return
         adding_reply_state[user_id_int] = {"step": "waiting_for_btn_text"}
         await update.message.reply_text(t("وش الكلام اللي تبيه بالزر؟ (مثلاً: اخفاء التوب)"))
@@ -1046,10 +1106,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if text in ["اهمس", "ه"]:
             if target_user.is_bot:
-                await update.message.reply_text(t("عذرا لا يمكنك الهمس للبوتات!"))
+                await update.message.reply_text(t("ياغبي انا بوت ماتقدر تهمس لي"))
                 return
             if target_id == user_id:
-                await update.message.reply_text(t("عذرا لا يمكنك الهمس لنفسك!"))
+                await update.message.reply_text(t("يامتوحد ماتقدر تهمس لنفسك"))
                 return
             
             w_id = str(random.randint(100000, 999999))
@@ -1070,7 +1130,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if text == "رتبته":
-            await update.message.reply_text(t(f"رتبته هي {target_role}"))
+            await update.message.reply_text(t(f"رتبته ⇝ {target_role}"))
             return
 
         if text.startswith("رفع "):
@@ -1095,14 +1155,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if chat_id in db["roles"] and target_id in db["roles"][chat_id]:
                 del db["roles"][chat_id][target_id]
                 save_data(db)
-            await update.message.reply_text(t(f"تم تنزيل {target_user.first_name} وصار عضو عادي"))
+            await update.message.reply_text(t(f"تم تنزيل {target_user.first_name} وصار عضو المسكين"))
             return
 
         if text in ["حظر", "طرد", "تقييد", "كتم"]:
             if issuer_weight < ROLES["ادمن"]:
                 return
             if target_weight >= issuer_weight:
-                await update.message.reply_text(t("ما تقدر تسوي شي لشخص رتبته اعلى او تساوي رتبتك"))
+                await update.message.reply_text(t("هدي يابطل ماتقدر تقدح عليه"))
                 return
             try:
                 if text == "حظر":
@@ -1161,7 +1221,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"اليوزر: @{user.username if user.username else 'بدون يوزر'}\n"
         )
         await context.bot.send_message(chat_id=DEVELOPER_ID, text=t(dev_msg))
-        await update.message.reply_text(t("تم ارسال طلبك للمطور سيتم الرد عليك قريبا."))
+        await update.message.reply_text(t("تم ارسال طلبك لللمطور وراح يرد عليك باقرب وقت ياعسل"))
         return
 
     if text == "المطور":
@@ -1227,7 +1287,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text.startswith("ماريا "):
         prompt = text.replace("ماريا ", "").strip()
-        status_msg = await update.message.reply_text(t("جاري..."))
+        status_msg = await update.message.reply_text(t("يتم التفكير"))
         try:
             ai_reply = get_fast_ai_response(prompt)
             await status_msg.edit_text(t(ai_reply))
@@ -1236,7 +1296,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "رتبتي":
-        await update.message.reply_text(t(f"رتبتك {issuer_role}"))
+        await update.message.reply_text(t(f"رتبتك ⇝ {issuer_role}"))
         return
 
 app = ApplicationBuilder().token(TOKEN).build()
