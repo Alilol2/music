@@ -10,7 +10,8 @@ from g4f.client import Client
 from telegram import Update, ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ChatMemberHandler, CallbackQueryHandler
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import threadingimport os
+import threading
+import os
 import json
 import asyncio
 import random
