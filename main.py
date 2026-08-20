@@ -20,7 +20,7 @@ TOKEN = "5845566822:AAGJGPGclHybO3r-0mL1I9kGDxduR7R6nr8"
 DEVELOPER_ID = 5543325412
 BOT_NAME = "ماريا"
 DEV_NAME = "محمد الهاشمي"
-DEV_BIO = "Software Developer"
+DEV_BIO = "#515 ~ @e515bot" 
 # =======================================================
 
 ai_client = Client()
