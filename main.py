@@ -3,13 +3,14 @@ import json
 import asyncio
 import random
 import time
+import urllib.parse
 from datetime import datetime, timedelta
 import nest_asyncio
-from g4f.client import Client
+import requests
 from telegram import Update, ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ChatMemberHandler, CallbackQueryHandler
 
-# تفعيل التوافق مع بيئة جوجل كولاب
+# تفعيل التوافق مع بيئة جوجل كولاب أو السيرفرات السحابية
 nest_asyncio.apply()
 
 # ================= الإعدادات الأساسية =================
@@ -189,26 +190,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if w_id in db["whispers"]:
             whisper = db["whispers"][w_id]
             if whisper["from_id"] == str(update.message.from_user.id):
+                # قفل تكرار الهمسة
+                if whisper.get("text", "") != "":
+                    await update.message.reply_text("الهمسة هذي انرسلت وخلاص، ما تقدر تكتبها مرة ثانية!")
+                    return
                 pending_whispers[update.message.from_user.id] = w_id
-                await update.message.reply_text(t("اكتب همستك الحين:"))
+                await update.message.reply_text(t("اكتب همستك الحين (بتنرسل مرة وحدة بس):"))
+                return
+            else:
+                await update.message.reply_text("هذا الرابط مو لك ياعيني!")
                 return
     await update.message.reply_text(t("هلا ومرحبا"))
 
-# --- تحديث وإصلاح الذكاء الاصطناعي واسم ماريا ---
+# --- تحديث وإصلاح الذكاء الاصطناعي (API جديد صاروخي ومستقر) ---
 def get_fast_ai_response(prompt):
     try:
-        c = Client()
-        response = c.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "اسمك ماريا، وأنتي مساعدة ذكية تسولفين باللهجة السعودية البحتة والعامية وبأسلوب عفوي وسريع جداً كأنك بنت سعودية. ممنوع استخدام أي إيموجات أو رموز تعبيرية أو نجوم أو هاشتاقات أو علامات تنسيق نهائياً."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        raw_text = response.choices[0].message.content
-        return raw_text.replace("*", "").replace("#", "").replace("`", "").replace("_", "").replace("-", "").strip()
-    except Exception: 
-        return "السيرفرات عليها ضغط شوي الحين، جرب تسألني بعد ثواني."
+        system_prompt = "اسمك ماريا، وأنتي مساعدة ذكية تسولفين باللهجة السعودية البحتة والعامية وبأسلوب عفوي وسريع جداً كأنك بنت سعودية. ممنوع استخدام أي إيموجات أو رموز تعبيرية أو نجوم أو هاشتاقات أو علامات تنسيق نهائياً."
+        url = f"https://text.pollinations.ai/{urllib.parse.quote(prompt)}?system={urllib.parse.quote(system_prompt)}"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            raw_text = response.text
+            return raw_text.replace("*", "").replace("#", "").replace("`", "").replace("_", "").replace("-", "").strip()
+        return "احس اني مصدعة شوي، اسألني بعد ثواني."
+    except Exception as e:
+        print("AI Error:", e)
+        return "احس اني مصدعة شوي، اسألني بعد ثواني."
 
 def format_reply_text(text, user, chat_title="المجموعة"):
     name = user.first_name or "المستخدم"
@@ -345,7 +351,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if w_id in db.get("whispers", {}):
             whisper = db["whispers"][w_id]
             if user_id in [whisper["from_id"], whisper["to_id"]]:
-                await query.answer(text=whisper["text"], show_alert=True)
+                if whisper.get("text", "") == "":
+                    await query.answer(text="الهمسة للحين ما انكتبت!", show_alert=True)
+                else:
+                    await query.answer(text=whisper["text"], show_alert=True)
                 return
             else:
                 await query.answer(text=t("الهمسة مو لك، لا تتدخل"), show_alert=True)
@@ -359,6 +368,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(parts) >= 3:
             target_id = parts[1]
             target_name = parts[2]
+            
+            # حماية: يمنع تهمس لنفسك من خلال الزر
+            if target_id == user_id:
+                await query.answer("تستهبل؟ تبي تهمس لنفسك؟", show_alert=True)
+                return
             
             w_id = str(random.randint(100000, 999999))
             bot_info = await context.bot.get_me()
@@ -396,7 +410,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     issuer_role = get_user_role(chat_id, int(user_id))
     issuer_weight = ROLES[issuer_role]
 
-    # --- نظام الحماية المتطور (رتبة مميز وأعلى مستثنيين تماماً) ---
+    # --- نظام الحماية المتطور ---
     if update.message.chat.type in ['group', 'supergroup'] and issuer_weight < ROLES["مميز"]:
         if chat_id not in db.get("chat_settings", {}):
             db.setdefault("chat_settings", {})[chat_id] = {"links": False, "photos": False, "stickers": False, "forwards": False}
@@ -434,10 +448,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     text = text.strip()
 
-    # --- تعريف المتغيرات المهمة هنا ---
     text_normalized = text.replace("إلغاء", "الغاء").replace("فك ", "الغاء ")
 
-    # --- استقبال نص الهمسة في الخاص ---
+    # --- استقبال نص الهمسة في الخاص (تسجل مرة وحدة وتنحذف من الانتظار) ---
     if update.message.chat.type == "private":
         if user_id_int in pending_whispers:
             w_id = pending_whispers[user_id_int]
@@ -467,7 +480,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 del pending_whispers[user_id_int]
                 return
     
-    # تحديث إحصائيات المستخدمين والقروبات
     db["user_names"][user_id] = user.first_name
     if update.message.chat.type in ['group', 'supergroup']:
         db["group_names"][chat_id] = update.message.chat.title
@@ -483,7 +495,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db["msg_count"][user_id] = db["msg_count"].get(user_id, 0) + 1
     save_data(db)
 
-    # فحص الكتم
     if chat_id in db["muted"] and user_id in db["muted"][chat_id]:
         try:
             await update.message.delete()
@@ -491,7 +502,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass 
         return
 
-    # --- نظام اختصارات الأوامر الذكي ---
     aliases = db.get("command_aliases", {})
     if text in aliases:
         text = aliases[text]
@@ -503,13 +513,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text_normalized = text.replace("إلغاء", "الغاء").replace("فك ", "الغاء ")
 
-    # --- أوامر القائمة الرئيسية التفاعلية ---
     if text in ["الاوامر", "اوامري", "م", "أوامر", "الاوامر"]:
         msg = "اهلا بك في قائمة اوامر ماريا\nاختر القسم اللي تبيه من الازرار تحت:"
         await update.message.reply_text(t(msg), reply_markup=generate_menu_keyboard())
         return
 
-    # ------------------ نظام اختصار الأوامر ------------------
     if user_id_int in adding_alias_state:
         state = adding_alias_state[user_id_int]
         step = state.get("step")
@@ -536,8 +544,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t("ارسل الأمر الأساسي اللي تبي تسوي له اختصار (مثلاً: حظر)"))
         return
 
-    # ------------------ الأوامر والمعلومات العامة الجديدة ------------------
-    # --- أمر المالك الجديد الفخم ---
     if text == "المالك":
         if update.message.chat.type == "private":
             await update.message.reply_text(t("هذا الأمر للمجموعات بس يا عيني."))
@@ -545,7 +551,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             admins = await context.bot.get_chat_administrators(chat_id)
-            # البحث عن منشئ المجموعة
             owner = next((admin for admin in admins if admin.status == 'creator'), None)
 
             if owner:
@@ -553,7 +558,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 owner_name = owner_user.first_name
                 owner_username = f"@{owner_user.username}" if owner_user.username else "بدون يوزر"
                 
-                # جلب البايو الخاص بالمالك (إذا كان متاح)
                 bio = "لا يوجد بايو"
                 try:
                     owner_chat = await context.bot.get_chat(owner_user.id)
@@ -562,18 +566,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     pass
 
-                # تصميم الكابشن المطابق للصورة تماماً
                 caption = (
                     f"• <a href='tg://user?id={owner_user.id}'>{owner_name}</a>\n\n"
                     f"• USE ↬ {owner_username}\n\n"
                     f"• bio ↬ {bio}"
                 )
 
-                # إنشاء زر شفاف بأسفل الرسالة يحمل اسم المالك ويحوله لخاصه
                 keyboard = [[InlineKeyboardButton(owner_name, url=f"tg://user?id={owner_user.id}")]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
-                # سحب صورة المالك الشخصية
                 photos = await context.bot.get_user_profile_photos(owner_user.id, limit=1)
                 
                 if photos.total_count > 0:
@@ -595,7 +596,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print(f"Owner Error: {e}")
             await update.message.reply_text(t("صار خطأ وأنا أدور على المالك."))
         return
-    # ----------------------------------------------------
 
     if text == "الوقت":
         ksa_time = datetime.utcnow() + timedelta(hours=3)
@@ -648,7 +648,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t(word))
         return
 
-    # ------------------ ألعاب التليجرام الجديدة والاجتماعية ------------------
     if text in ["كت تويت", "كت"]:
         await update.message.reply_text(t(random.choice(CUT_TWEET)))
         return
@@ -665,7 +664,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t(random.choice(EQAB)))
         return
 
-    # ------------------ نظام الزواج واكس او بالرد ------------------
     if update.message.reply_to_message:
         target_id = str(update.message.reply_to_message.from_user.id)
         
@@ -732,7 +730,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t("انت سنجل بائس مو متزوج"))
         return
 
-    # ------------------ نظام الألعاب المصغرة مع التوقيت والمراكز ------------------
     if chat_id in active_math_game and text == active_math_game[chat_id]["answer"]:
         game_data = active_math_game.pop(chat_id)
         elapsed = time.time() - game_data["start"]
@@ -824,7 +821,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t(f"اسرع 3 يكتبون هالكلمة يفوزون:\n\n{word}"))
         return
 
-    # ------------------ نظام الأقفال والإدارة المتطورة ------------------
     if text.startswith("قفل ") or text.startswith("فتح "):
         if issuer_weight < ROLES["ادمن"]:
             await update.message.reply_text(t("هذا الأمر للمشرفين وأعلى"))
@@ -879,7 +875,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(t("البوت ماله صلاحية يغير الوصف"))
         return
 
-    # ------------------ نظام مسح المطور (الجديد والمحسن) ------------------
     if update.message.reply_to_message:
         target_user = update.message.reply_to_message.from_user
         target_id = str(target_user.id)
@@ -917,7 +912,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(t("ما عندي صلاحية"))
             return
 
-    # ------------------ نظام صنع الأزرار الحرة بالروابط ------------------
     if user_id_int in creating_button_state:
         state = creating_button_state[user_id_int]
         step = state.get("step")
@@ -959,7 +953,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t("حلو، وش تبي يكون النص الأساسي للرسالة؟ (الكلام اللي فوق الزر)"))
         return
 
-    # ------------------ نظام تغيير الكلمات (الذكي) ------------------
     if user_id_int in changing_word_state:
         state = changing_word_state[user_id_int]
         step = state.get("step")
@@ -986,7 +979,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t("اكتب الكلمة الأساسية اللي تبي تغيرها (نفس ما تطلع بالبوت بالضبط):"))
         return
 
-    # ------------------ نظام إضافة الردود وتعديل الزر ------------------
     if user_id_int in adding_reply_state:
         state = adding_reply_state[user_id_int]
         step = state.get("step")
@@ -1049,13 +1041,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "تعديل زر":
         if issuer_weight < ROLES["مالك"]:
-            await update.message.reply_text(t("مايمديك يحب هذا الامر يخص Dev"))
+            await update.message.reply_text(t("معليش هذا الامر للمالك والـ Dev فقط"))
             return
         adding_reply_state[user_id_int] = {"step": "waiting_for_btn_text"}
         await update.message.reply_text(t("وش الكلام اللي تبيه بالزر؟ (مثلاً: اخفاء التوب)"))
         return
 
-    # ------------------ نظام الرابط ------------------
     if text == "تعطيل الرابط":
         if issuer_weight < ROLES["ادمن"]:
             await update.message.reply_text(t("هذا الامر للادمن واعلى"))
@@ -1085,7 +1076,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(t("البوت مو مشرف او ماعنده صلاحية دعوة المستخدمين"))
         return
 
-    # ------------------ الردود العامة ------------------
     if text == "الردود العامه":
         replies = db.get("custom_replies", {})
         if not replies:
@@ -1097,7 +1087,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t(msg))
         return
 
-    # ------------------ أوامر حظر ورفع بالرد ------------------
     if update.message.reply_to_message:
         target_user = update.message.reply_to_message.from_user
         target_id = str(target_user.id)
@@ -1106,10 +1095,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if text in ["اهمس", "ه"]:
             if target_user.is_bot:
-                await update.message.reply_text(t("ياغبي انا بوت ماتقدر تهمس لي"))
+                await update.message.reply_text(t("عذرا لا يمكنك الهمس للبوتات!"))
                 return
             if target_id == user_id:
-                await update.message.reply_text(t("يامتوحد ماتقدر تهمس لنفسك"))
+                await update.message.reply_text(t("عذرا لا يمكنك الهمس لنفسك!"))
                 return
             
             w_id = str(random.randint(100000, 999999))
@@ -1130,7 +1119,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if text == "رتبته":
-            await update.message.reply_text(t(f"رتبته ⇝ {target_role}"))
+            await update.message.reply_text(t(f"رتبته هي {target_role}"))
             return
 
         if text.startswith("رفع "):
@@ -1155,14 +1144,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if chat_id in db["roles"] and target_id in db["roles"][chat_id]:
                 del db["roles"][chat_id][target_id]
                 save_data(db)
-            await update.message.reply_text(t(f"تم تنزيل {target_user.first_name} وصار عضو المسكين"))
+            await update.message.reply_text(t(f"تم تنزيل {target_user.first_name} وصار عضو عادي"))
             return
 
         if text in ["حظر", "طرد", "تقييد", "كتم"]:
             if issuer_weight < ROLES["ادمن"]:
                 return
             if target_weight >= issuer_weight:
-                await update.message.reply_text(t("هدي يابطل ماتقدر تقدح عليه"))
+                await update.message.reply_text(t("ما تقدر تسوي شي لشخص رتبته اعلى او تساوي رتبتك"))
                 return
             try:
                 if text == "حظر":
@@ -1213,7 +1202,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(t("صار خطأ، تأكد ان الشخص موجود وبوت مشرف"))
             return
 
-    # ------------------ الأوامر العامة الأخيرة ------------------
     if text == "نادي المطور":
         dev_msg = (
             f"نداء للمطور من مجموعة: {update.message.chat.title}\n"
@@ -1221,7 +1209,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"اليوزر: @{user.username if user.username else 'بدون يوزر'}\n"
         )
         await context.bot.send_message(chat_id=DEVELOPER_ID, text=t(dev_msg))
-        await update.message.reply_text(t("تم ارسال طلبك لللمطور وراح يرد عليك باقرب وقت ياعسل"))
+        await update.message.reply_text(t("تم ارسال طلبك للمطور سيتم الرد عليك قريبا."))
         return
 
     if text == "المطور":
@@ -1287,7 +1275,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text.startswith("ماريا "):
         prompt = text.replace("ماريا ", "").strip()
-        status_msg = await update.message.reply_text(t("يتم التفكير"))
+        status_msg = await update.message.reply_text(t("جاري..."))
         try:
             ai_reply = get_fast_ai_response(prompt)
             await status_msg.edit_text(t(ai_reply))
@@ -1296,7 +1284,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "رتبتي":
-        await update.message.reply_text(t(f"رتبتك ⇝ {issuer_role}"))
+        await update.message.reply_text(t(f"رتبتك {issuer_role}"))
         return
 
 app = ApplicationBuilder().token(TOKEN).build()
