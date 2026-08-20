@@ -13,7 +13,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 nest_asyncio.apply()
 
 # ================= الإعدادات الأساسية =================
-TOKEN = "6236056768:AAHVTrH6A7wLKHw1neSkDTJwPaxJ0YaCFkQ"
+TOKEN = "5845566822:AAGJGPGclHybO3r-0mL1I9kGDxduR7R6nr8"
 DEVELOPER_ID = 5543325412 
 BOT_NAME = "ماريا"
 DEV_NAME = "محمد الهاشمي"
